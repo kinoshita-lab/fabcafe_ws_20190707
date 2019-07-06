@@ -4,7 +4,7 @@
 - ブレッドボード
 - Teensy 3.6
 - イヤホン
-- SDカード
+- マイクロSDカード
 - ボリューム
 - スイッチ
 - ケーブル
@@ -22,7 +22,7 @@
 インストールしてください。
 
 #### windowsの方
-[シリアルドライバー](https://www.pjrc.com/teensy/serial_install.exe)も必要なので、こちらもダウンロードして、実行してください。
+[シリアルドライバー](https://www.pjrc.com/teensy/serial_install.exe)も必要なので、こちらもダウンロードして、実行してください。（実行すると、「不要です」というメッセージが出る場合もあります。)
 
 ### うまくいったか確認
 Arduinoを起動します。
@@ -46,6 +46,7 @@ sine1の右端の小さい■をドラッグして、dacs1の左端の下の■�
 画面上部の赤い "Export"を押します。
 
 この画面が表示されたら、コードをコピーします。コピーするには、ctrl+cボタンを押します(macの方はcmd+c)
+
 ![Export画面](https://i.gyazo.com/01acbcd322d42f86039fad48ad109b55.png) 
 
 Arduinoを起動します。
@@ -75,3 +76,272 @@ Arduinoの画面左上の、左から2番目のボタン、「マイコンボー
 うまくいけば、ヘッドフォンから音がします。
 
 
+### 2 ノブで音の高さを変える
+ノブを取りだします。35 と書かれている所に差しこみます。
+
+黒い線、赤い線、緑の線を図のように差します。
+
+![ノブの付けかた](https://i.gyazo.com/thumb/1000/a4d6fc4992429fc40c97962e2731fd77-png.png)
+
+
+先ほどのプログラムの、 void loop() のところを、以下のように書きかえます。
+```
+ void loop() {
+   const auto knob = analogRead(0) >> 2 << 2; // knobの値を読む。最小は0で、最大は1023になります。
+   const auto frequency = map(knob, 0, 1023, 0, 10000); // 0 ~~ 10000Hzの範囲にする
+   sine1.frequency(frequency);  // sine1の周波数を設定する
+ 
+ }
+ ```
+ Arduinoの画面左上の、左から2番目のボタン、「マイコンボードに書き込む」を押します。
+ うまくいけば、ノブを回した時に音の高さが変わります。
+ 
+ 参考 ボリュームを増やしたい時（あとで1つ追加します)
+ ![参考 ボリュームを増やしたい時](https://i.gyazo.com/c9e8f01a9058058072fe597665d70348.png)
+ 
+参考 teensyのピン配置 
+![参考 Teensy3.6のピン配置](http://www.hobbytronics.co.uk/image/cache/data/teensy/teensy36-4-500x500.jpg)
+
+### 3 ボタンを押したら音が出る
+60 と書いてあるところの下にボタンを差します。
+(ボタンには縦横の向きがあります。金属が自分に向かうような方向でとりつけます。)
+黒い線、緑の線を図のように差します。
+
+![ボタンを追加](https://i.gyazo.com/040223759c745b1ecbd589b30926c77f.png)
+
+「ボタンを押す」をできるようにコードに追加していきます。
+// 追加！ というところが増えたところです。
+
+```
+#include <Audio.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <SD.h>
+#include <SerialFlash.h>
+#include <Bounce2.h> // 追加！ ボタン用クラスを使いたい
+ 
+// GUItool: begin automatically generated code
+AudioSynthWaveformSine   sine1;          //xy=189,184
+AudioOutputAnalogStereo  dacs1;          //xy=443,188
+AudioConnection          patchCord1(sine1, 0, dacs1, 0);
+AudioConnection          patchCord2(sine1, 0, dacs1, 1);
+// GUItool: end automatically generated code
+ 
+constexpr int SWITCH_1_PIN = 2; // 追加！2番ピンを使う
+Bounce sw1 = Bounce(); // 追加！ ボタン用クラスを作った
+
+void setup() {
+    pinMode(SWITCH_1_PIN, INPUT_PULLUP); // 追加！ ピンの設定 2番のピンを入力として使う
+    sw1.attach(SWITCH_1_PIN); // 追加！ ボタン用クラスは2番ピンを使う
+    sw1.interval(10);// 追加！ ボタンが押されたと判断するまでの時間間隔(10msec)
+    AudioMemory(15);
+
+    AudioNoInterrupts();
+
+    sine1.frequency(1000);
+    // sine1.amplitude(1.0); // 追加！ ボタンで操作したいので、 コメントにする
+
+    AudioInterrupts();
+}
+ 
+void loop() {
+  sw1.update(); // 追加！ スイッチの状態をスキャン
+ 
+ 
+  // 押した // 追加！ 
+  if (sw1.fell()) { // 追加！ 押したときは・・・
+    sine1.amplitude(1.0); // 追加！ 音量を最大にする = on
+  } // 追加！ 
+ 
+  // 離した // 追加！ 
+  if (sw1.rose()) { // 追加！ 離したときは・・・
+    sine1.amplitude(0.0); // 追加！ 音量を0にする = off
+  } // 追加！ 
+    
+  const auto knob = analogRead(0) >> 2 << 2;
+  const auto frequency = map(knob, 0, 1023, 0, 10000); // 0 ~ 10000Hz
+  sine1.frequency(frequency);  
+ }
+ ```
+
+参考 スイッチを増やすには
+
+![スイッチたくさん](https://i.gyazo.com/845c3e506da68af3b7cfee03a45ad3f6.png)
+
+
+### 4 エフェクトをかける
+
+ボリュームを1つ追加します。(緑の線は51に差します)
+![エフェクト用](https://i.gyazo.com/faf6104d56dbc89342c87cd19d0eaa06.png)
+
+#### リバーブをかけてみる
+[Audio System Design Tool for Teensy Audio Library](https://www.pjrc.com/teensy/gui/index.html) を開きます。
+
+sine1とdacs1の間の線をクリックしてオレンジにして、deleteボタンを押します（2本ともやる)。
+
+sine1をちょっと左にずらします。
+
+左の箱の"effect" にある reverb をドラッグして、sine1とdacs1の間に置きます。
+
+sine1とreverb1、reverb1とdacs1を図のように■をドラッグしてつなぎます。
+
+![リバーブ](https://i.gyazo.com/814991113543854e8b6158a1f36fcac5.png)
+
+「1 とりあえず音を出す」でやったように、"Export"を押してコピー、Arduinoにペーストします。ボタン用に
+```
+#include <Bounce2.h>
+```
+を追加していますので、ここだけ追加します。
+
+このようになります。
+```
+#include <Audio.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <SD.h>
+#include <SerialFlash.h>
+#include <Bounce2.h> // // スイッチ用ライブラリ
+ 
+// GUItool: begin automatically generated code
+AudioSynthWaveformSine   sine1;          //xy=111,185
+AudioEffectReverb        reverb1;        //xy=375,188
+AudioOutputAnalogStereo  dacs1;          //xy=645,199
+AudioConnection          patchCord1(sine1, reverb1);
+AudioConnection          patchCord2(reverb1, 0, dacs1, 0);
+AudioConnection          patchCord3(reverb1, 0, dacs1, 1);
+// GUItool: end automatically generated code
+```
+
+リバーブの時間を、ボリュームでコントロールできるようにします。
+「3.ボタンを押したら音が出る」で作ったコードに追加します。
+// 追加！ というところが増えたところです。
+```
+#include <Audio.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <SD.h>
+#include <SerialFlash.h>
+#include <Bounce2.h> // // スイッチ用ライブラリ
+ 
+// GUItool: begin automatically generated code
+AudioSynthWaveformSine   sine1;          //xy=111,185
+AudioEffectReverb        reverb1;        //xy=375,188
+AudioOutputAnalogStereo  dacs1;          //xy=645,199
+AudioConnection          patchCord1(sine1, reverb1);
+AudioConnection          patchCord2(reverb1, 0, dacs1, 0);
+AudioConnection          patchCord3(reverb1, 0, dacs1, 1);
+// GUItool: end automatically generated code
+ 
+ 
+constexpr int SWITCH_1_PIN = 2; //2番ピンを使う
+Bounce sw1 = Bounce();
+ 
+void setup() {
+    pinMode(SWITCH_1_PIN, INPUT_PULLUP);
+    sw1.attach(SWITCH_1_PIN);
+    sw1.interval(10);
+    AudioMemory(800);
+
+    AudioNoInterrupts();
+
+    sine1.frequency(0);
+ 
+    reverb1.reverbTime(0.0); // 追加！ リバーブを初期設定しています。
+
+    AudioInterrupts();
+}
+ 
+void loop() {
+  sw1.update(); // スイッチの状態をスキャン
+
+  if (sw1.fell()) {
+    sine1.amplitude(0.3); //最大振幅を少し小くする
+  }
+ 
+  if (sw1.rose()) {
+    sine1.amplitude(0.001); // ちょっと残す(不自然じゃないように)
+  }
+     
+  const auto knob = analogRead(0) >> 2 << 2;
+  const auto frequency = map(knob, 0, 1023, 0, 10000); // 0 ~~ 10000Hz
+  sine1.frequency(frequency);  
+
+   // reverb // 追加！ 
+   const auto reverbTime = map(analogRead(1), 0, 1023, 0, 100); // 追加！ リバーブの時間をボリュームから読んで・・・
+   reverb1.reverbTime(reverbTime); // 追加！ それを反映させます。
+ }
+```
+
+#### ディレイをかけてみる
+手順は「リバーブをかけてみる」と同じですが複雑です。
+
+ボリュームを1つ追加します。
+![ディレイ](https://i.gyazo.com/8d966576e492f02dca01654e0f811e30.png)
+
+![ディレイ](https://i.gyazo.com/adbaca562036b27cd5ff23a3a8b08f12.png)
+```
+#include <Audio.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <SD.h>
+#include <SerialFlash.h>
+#include <Bounce2.h> // // スイッチ用ライブラリ
+ 
+// GUItool: begin automatically generated code
+AudioSynthWaveformSine   sine1;          //xy=111,185
+AudioEffectDelay         delay1;         //xy=304,372
+AudioMixer4              delayFeedback_mixer;         //xy=373,204
+AudioAmplifier           delayFeedback_amp;           //xy=548,406
+AudioOutputAnalogStereo  dacs1;          //xy=645,199
+AudioConnection          patchCord1(sine1, 0, delayFeedback_mixer, 0);
+AudioConnection          patchCord2(delay1, 0, delayFeedback_amp, 0);
+AudioConnection          patchCord3(delayFeedback_mixer, 0, dacs1, 0);
+AudioConnection          patchCord4(delayFeedback_mixer, 0, dacs1, 1);
+AudioConnection          patchCord5(delayFeedback_mixer, delay1);
+AudioConnection          patchCord6(delayFeedback_amp, 0, delayFeedback_mixer, 1);
+// GUItool: end automatically generated code
+ 
+ 
+constexpr int SWITCH_1_PIN = 2; //2番ピンを使う
+Bounce sw1 = Bounce();
+ 
+void setup() {
+    pinMode(SWITCH_1_PIN, INPUT_PULLUP);
+    sw1.attach(SWITCH_1_PIN);
+    sw1.interval(10);
+    AudioMemory(800);
+
+    AudioNoInterrupts();
+ 
+    sine1.frequency(1000);
+
+    delayFeedback_amp.gain(0.0); // 
+ 
+    AudioInterrupts();
+    Serial.begin(115200);
+
+}
+void loop() {
+  sw1.update(); // スイッチの状態をスキャン
+ 
+  if (sw1.fell()) {
+    sine1.amplitude(0.4);
+  }
+ 
+  if (sw1.rose()) {
+    sine1.amplitude(0.0);
+  }
+     
+  const auto knob = analogRead(0) >> 2 << 2;
+  const auto frequency = map(knob, 0, 1023, 0, 10000); // 0 ~~ 10000Hz
+  sine1.frequency(frequency);  
+
+   // delay
+   const auto delayTime = map(analogRead(1), 0, 1023, 0, 750);
+   delay1.delay(0, delayTime);
+   const auto delayValue = analogRead(2) >> 2 << 2;
+   const auto mappedDelayValue = map(delayValue, 0, 1023, 0, 9000);
+   const auto floatDelayValue = mappedDelayValue / 10000.0;
+   delayFeedback_amp.gain(floatDelayValue);
+}
+````
