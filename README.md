@@ -1,4 +1,9 @@
-# 電子楽器はつくれる！ ワークショップ#1 ハンズオン
+# 電子楽器はつくれる！ ワークショップ#1 ハンズオンの内容
+
+こちらに、当日みなさまにお伝えする内容をシェアします。
+説明しながら進めることですので、今の段階では内容がわからなくても、大丈夫です。
+受講後には、ワークショップのまとめとしてお役立てくだされば幸いです。
+
 
 ## キットの説明
 - ブレッドボード
@@ -321,6 +326,7 @@ void setup() {
     Serial.begin(115200);
 
 }
+ 
 void loop() {
   sw1.update(); // スイッチの状態をスキャン
  
@@ -345,3 +351,125 @@ void loop() {
    delayFeedback_amp.gain(floatDelayValue);
 }
 ````
+
+### 5 サンプルを使う
+#### 5.1 Teensyのメモリを使う
+[https://www.pjrc.com/teensy/td_libs_AudioPlayMemory.html](wav2sketch)
+をコンパイルして使う(配布データに同梱)
+Arduinoのプログラムと同じフォルダに、.wavファイルと、wav2sketchを入れて
+./wav2sketch
+と打てば、Arduinoで必要なファイルが自動的に作られます。
+
+
+[Audio System Design Tool for Teensy Audio Library](https://www.pjrc.com/teensy/gui/index.html) を開きます。
+下図のようにつなぎます。playMemは"play"にあります。
+![playmem](https://i.gyazo.com/8d8cd96646cec2405b359d3e56457e59.png)
+
+
+```
+#include <Audio.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <SD.h>
+#include <SerialFlash.h>
+#include <Bounce2.h> // // スイッチ用ライブラリ
+ 
+#include "AudioSampleSnare.h"
+ 
+// GUItool: begin automatically generated code
+AudioPlayMemory          playMem1;       //xy=194,454
+AudioOutputAnalogStereo  dacs1;          //xy=445,454
+AudioConnection          patchCord1(playMem1, 0, dacs1, 0);
+AudioConnection          patchCord2(playMem1, 0, dacs1, 1);
+// GUItool: end automatically generated code
+ 
+ 
+constexpr int SWITCH_1_PIN = 2; //2番ピンを使う
+Bounce sw1 = Bounce();
+ 
+void setup() {
+    pinMode(SWITCH_1_PIN, INPUT_PULLUP);
+    sw1.attach(SWITCH_1_PIN);
+    sw1.interval(10);
+    AudioMemory(800);
+
+    AudioNoInterrupts();
+
+
+    AudioInterrupts();
+    Serial.begin(115200);
+
+}
+ 
+void loop() {
+  sw1.update(); // スイッチの状態をスキャン
+ 
+  if (sw1.fell()) {
+    playMem1.play(AudioSampleSnare);
+  }
+}
+``` 
+
+#### 5.2 マイクロSDカードから読む
+マイクロSDカードをPCに差し込み、直下(フォルダではないところ)に、wavファイルを置く。
+ファイル名は大文字で8文字まで、拡張子も大文字で .WAVにする。 例 MEOW.WAV
+
+マイクロSDカードをTeensyに差して、以下のプログラムを書き込みます。
+
+
+```
+#include <Audio.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <SD.h>
+#include <SerialFlash.h>
+#include <Bounce2.h> // // スイッチ用ライブラリ
+ 
+ 
+// GUItool: begin automatically generated code
+AudioPlaySdWav           playSdWav1;     //xy=153,263
+AudioOutputAnalogStereo  dacs1;          //xy=486,258
+AudioConnection          patchCord1(playSdWav1, 0, dacs1, 0);
+AudioConnection          patchCord2(playSdWav1, 1, dacs1, 1);
+// GUItool: end automatically generated code
+ 
+// SDカードから読むのに必要な設定
+// Use these with the Teensy 3.5 & 3.6 SD card
+#define SDCARD_CS_PIN    BUILTIN_SDCARD
+#define SDCARD_MOSI_PIN  11  // not actually used
+#define SDCARD_SCK_PIN   13  // not actually used
+ 
+constexpr int SWITCH_1_PIN = 2; //2番ピンを使う
+Bounce sw1 = Bounce();
+ 
+void setup() {
+    pinMode(SWITCH_1_PIN, INPUT_PULLUP);
+ 
+  // SDカードのセットアップ
+  SPI.setMOSI(SDCARD_MOSI_PIN);
+  SPI.setSCK(SDCARD_SCK_PIN);
+  if (!(SD.begin(SDCARD_CS_PIN))) {
+    // stop here, but print a message repetitively
+    while (1) {
+      Serial.println("Unable to access the SD card");
+      delay(500);
+    }
+  }
+    sw1.attach(SWITCH_1_PIN);
+    sw1.interval(10);
+    AudioMemory(800);
+
+    AudioNoInterrupts();
+ 
+ 
+    AudioInterrupts();
+ }
+ 
+void loop() {
+  sw1.update(); // スイッチの状態をスキャン
+
+  if (sw1.fell()) {
+    playSdWav1.play("MEOW2.WAV");
+  } 
+}
+```
